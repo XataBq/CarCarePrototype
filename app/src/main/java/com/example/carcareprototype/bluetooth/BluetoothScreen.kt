@@ -16,10 +16,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.carcareprototype.bluetooth.RfcommClient
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.example.carcareprototype.bluetooth.uuids.BluetoothUuidCatalog
 
 @Composable
 fun BluetoothScreen(vm: BluetoothViewModel = viewModel()) {
@@ -92,10 +92,17 @@ fun BluetoothScreen(vm: BluetoothViewModel = viewModel()) {
                     if (link.services.isNotEmpty()) {
                         Text("GATT services: ${link.services.size}")
                         link.services.forEach { service ->
-                            Text("Service: ${service.uuid}", style = MaterialTheme.typography.bodySmall)
+                            BluetoothUuidLabel(
+                                service.uuid,
+                                BluetoothUuidCatalog.gattService(service.uuid)
+                            )
                             service.characteristics.forEach { char ->
-                                Text("  ${char.uuid}  [${char.properties}]",
-                                    style = MaterialTheme.typography.bodySmall)
+                                BluetoothUuidLabel(
+                                    uuid = char.uuid,
+                                    meaning = BluetoothUuidCatalog.gattCharacteristic(service.uuid, char.uuid),
+                                    properties = char.properties,
+                                    modifier = Modifier.padding(start = 12.dp)
+                                )
                             }
                         }
                     }
@@ -111,9 +118,13 @@ fun BluetoothScreen(vm: BluetoothViewModel = viewModel()) {
                     Text("Type: ${device.type}; paired: ${device.bonded}")
                     Text("RSSI: ${device.rssi?.let { "$it dBm" } ?: "N/A"}")
                     Text("Classic UUID (${device.uuidSource}): ${device.uuids.size}")
-                    device.uuids.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+                    device.uuids.forEach { uuid ->
+                        BluetoothUuidLabel(uuid, BluetoothUuidCatalog.classic(uuid))
+                    }
                     Text("BLE advertisement UUIDs: ${device.bleAdvertisedUuids.size}")
-                    device.bleAdvertisedUuids.forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
+                    device.bleAdvertisedUuids.forEach { uuid ->
+                        BluetoothUuidLabel(uuid, BluetoothUuidCatalog.gattService(uuid))
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = { vm.requestSdp(device.address) }, enabled = !busy) {
                             Text("SDP")
