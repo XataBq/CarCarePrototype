@@ -11,278 +11,222 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.ParcelUuid
+import android.os.Parcelable
 import androidx.core.content.ContextCompat
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import androidx.core.content.IntentCompat
 
-internal class BluetoothScanner(
-    context: Context,
-) {
+class BluetoothScanner(context: Context) {
+
     private val appContext = context.applicationContext
+    private val adapter: BluetoothAdapter? =
+        appContext.getSystemService(BluetoothManager::class.java)?.adapter
 
-    private val manager = appContext.getSystemService(
-        BluetoothManager::class.java
-    )
+    private var onEvent: ((BluetoothScanEvent) -> Unit)? = null
+    private var registered = false
 
-    private val adapter: BluetoothAdapter?
-        get() = manager?.adapter
+    private fun emit(event: BluetoothScanEvent) {
+        onEvent?.invoke(event)
+    }
 
-    private val _state = MutableStateFlow(BluetoothUiState())
-    val state = _state.asStateFlow()
-
-    private var receiverRegistered = false
-
-    private fun hasConnectPermission(): Boolean =
+    private fun hasConnectPermission() =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
             ContextCompat.checkSelfPermission(
-                appContext,
-                Manifest.permission.BLUETOOTH_CONNECT
+                appContext, Manifest.permission.BLUETOOTH_CONNECT
             ) == PackageManager.PERMISSION_GRANTED
 
-    private fun hasScanPermission(): Boolean =
+    private fun hasScanPermission() =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             ContextCompat.checkSelfPermission(
-                appContext,
-                Manifest.permission.BLUETOOTH_SCAN
+                appContext, Manifest.permission.BLUETOOTH_SCAN
             ) == PackageManager.PERMISSION_GRANTED
         } else {
             ContextCompat.checkSelfPermission(
-                appContext,
-                Manifest.permission.ACCESS_FINE_LOCATION
+                appContext, Manifest.permission.ACCESS_FINE_LOCATION
             ) == PackageManager.PERMISSION_GRANTED
         }
 
-    private fun log(message: String) {
-        _state.update {
-            it.copy(logs = (it.logs + message).takeLast(100))
-        }
-    }
-
     @SuppressLint("MissingPermission")
-    private fun toInfo(device: BluetoothDevice): BluetoothDeviceInfo {
-        val type = when(device.type) {
+    private fun describe(
+        device: BluetoothDevice,
+        reportedName: String? = null,
+        rssi: Int? = null
+    ): BluetoothDeviceInfo {
+        val type = when (device.type) {
             BluetoothDevice.DEVICE_TYPE_CLASSIC -> "Classic"
             BluetoothDevice.DEVICE_TYPE_LE -> "BLE"
             BluetoothDevice.DEVICE_TYPE_DUAL -> "Dual"
             else -> "Unknown"
         }
+        val name = reportedName?.takeIf { it.isNotBlank() }
+            ?: device.name?.takeIf { it.isNotBlank() }
+            ?: "Unknown device"
+        val cachedUuids = device.uuids?.map { it.uuid.toString() }.orEmpty()
 
         return BluetoothDeviceInfo(
-            name = device.name ?: "Unknown device",
+            name = name,
             address = device.address,
             bonded = device.bondState == BluetoothDevice.BOND_BONDED,
             type = type,
-            uuids = device.uuids
-                ?.map { it.uuid.toString() }
-                .orEmpty()
+            rssi = rssi,
+            uuids = cachedUuids,
+            uuidSource = if (cachedUuids.isEmpty()) "NONE" else "CACHED"
         )
     }
 
-    @SuppressLint("MissingPermission")
-    private fun addOrUpdate(device: BluetoothDevice) {
-        if (!hasConnectPermission()) return
-
-        val info = toInfo(device)
-
-        _state.update { current ->
-            val devices = current.devices
-                .filterNot { it.address == info.address } + info
-
-            current.copy(
-                devices = devices.sortedWith(
-                    compareByDescending<BluetoothDeviceInfo> { it.bonded }
-                        .thenBy { it.name }
-                )
-            )
-        }
-    }
+    private fun Intent.bluetoothDevice(): BluetoothDevice? =
+        IntentCompat.getParcelableExtra(
+            this, BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java
+        )
 
     private val receiver = object : BroadcastReceiver() {
         @SuppressLint("MissingPermission")
         override fun onReceive(context: Context, intent: Intent) {
-
-            when (intent.action) {
-                BluetoothDevice.ACTION_FOUND -> {
-                    val device = intent.bluetoothDeviceExtra() ?: return
-                    addOrUpdate(device)
-                    log("Found: ${device.address}")
-                }
-
-                BluetoothDevice.ACTION_UUID -> {
-                    val device = intent.bluetoothDeviceExtra() ?: return
-
-                    addOrUpdate(device)
-                    log("SDP result: ${device.address}")
-
-                    val uuids = device.uuids
-                        ?.map { it.uuid.toString() }
-                        .orEmpty()
-
-                    _state.update { current ->
-                        current.copy(
-                            devices = current.devices.map {
-                                if (it.address == device.address) {
-                                    it.copy(uuids = uuids)
-                                } else it
-                            }
-                        )
+            try {
+                when (intent.action) {
+                    BluetoothDevice.ACTION_FOUND,
+                    BluetoothDevice.ACTION_NAME_CHANGED,
+                    BluetoothDevice.ACTION_BOND_STATE_CHANGED -> {
+                        if (!hasConnectPermission()) return
+                        val device = intent.bluetoothDevice() ?: return
+                        val rssi = if (intent.hasExtra(BluetoothDevice.EXTRA_RSSI)) {
+                            intent.getShortExtra(
+                                BluetoothDevice.EXTRA_RSSI, Short.MIN_VALUE
+                            ).toInt()
+                        } else null
+                        emit(BluetoothScanEvent.DeviceSeen(
+                            describe(device, intent.getStringExtra(BluetoothDevice.EXTRA_NAME), rssi)
+                        ))
                     }
-                    log("UUID count: ${uuids.size}")
-                }
+                    BluetoothDevice.ACTION_UUID -> {
+                        if (!hasConnectPermission()) return
+                        val device = intent.bluetoothDevice() ?: return
 
-                BluetoothAdapter.ACTION_DISCOVERY_FINISHED -> {
-                    _state.update { it.copy(scanning = false) }
-                    log("Discovery finished")
+                        val parcelables: Array<Parcelable>? =
+                            IntentCompat.getParcelableArrayExtra(
+                                intent,
+                                BluetoothDevice.EXTRA_UUID,
+                                Parcelable::class.java
+                            )
+                        val uuids = parcelables?.filterIsInstance<ParcelUuid>()
+                            ?.map { it.uuid.toString() }
+                        emit(BluetoothScanEvent.SdpResult(describe(device), uuids))
+                    }
+                    BluetoothAdapter.ACTION_DISCOVERY_STARTED ->
+                        emit(BluetoothScanEvent.Scanning(true))
+                    BluetoothAdapter.ACTION_DISCOVERY_FINISHED ->
+                        emit(BluetoothScanEvent.Scanning(false))
+                    BluetoothAdapter.ACTION_STATE_CHANGED -> refreshPaired()
                 }
-
-                BluetoothAdapter.ACTION_STATE_CHANGED -> {
-                    refresh()
-                }
+            } catch (e: SecurityException) {
+                emit(BluetoothScanEvent.Message("PERMISSION", e.message ?: "Access denied"))
+            } catch (e: RuntimeException) {
+                emit(BluetoothScanEvent.Message("ERROR", "Broadcast: ${e.message}"))
             }
         }
     }
 
-    private fun Intent.bluetoothDeviceExtra(): BluetoothDevice? {
-        return if (Build.VERSION.SDK_INT >= 33) {
-            getParcelableExtra(
-                BluetoothDevice.EXTRA_DEVICE,
-                BluetoothDevice::class.java,
+    fun start(callback: (BluetoothScanEvent) -> Unit) {
+        onEvent = callback
+        if (!registered) {
+            val filter = IntentFilter().apply {
+                addAction(BluetoothDevice.ACTION_FOUND)
+                addAction(BluetoothDevice.ACTION_NAME_CHANGED)
+                addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED)
+                addAction(BluetoothDevice.ACTION_UUID)
+                addAction(BluetoothAdapter.ACTION_DISCOVERY_STARTED)
+                addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED)
+                addAction(BluetoothAdapter.ACTION_STATE_CHANGED)
+            }
+            ContextCompat.registerReceiver(
+                appContext, receiver, filter, ContextCompat.RECEIVER_EXPORTED
             )
-        } else {
-            Suppress("DEPRECATION")
-            getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+            registered = true
         }
-    }
-
-    fun register() {
-        if (receiverRegistered) return
-
-        val filter = IntentFilter().apply {
-            addAction(BluetoothDevice.ACTION_FOUND)
-            addAction(BluetoothDevice.ACTION_UUID)
-            addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED)
-            addAction(BluetoothAdapter.ACTION_STATE_CHANGED)
-        }
-
-        ContextCompat.registerReceiver(
-            appContext,
-            receiver,
-            filter,
-            ContextCompat.RECEIVER_EXPORTED
-        )
-
-        receiverRegistered = true
-        refresh()
+        refreshPaired()
     }
 
     @SuppressLint("MissingPermission")
-    fun refresh() {
-        val bluetoothAdapter = adapter
-
-        if (bluetoothAdapter == null) {
-            _state.update {
-                it.copy(available = false, enabled = false)
-            }
-            log("Bluetooth adapter unavailable")
+    fun refreshPaired() {
+        val bt = adapter ?: run {
+            emit(BluetoothScanEvent.Adapter(false, false))
             return
         }
-
-        val enabled = bluetoothAdapter.isEnabled
-
-        _state.update {
-            it.copy(available = true, enabled = enabled)
-        }
-
-        if (!enabled) {
-            log("Bluetooth disabled")
-            return
-        }
-
         if (!hasConnectPermission()) {
-            log("BLUETOOTH_CONNECT permission missing")
+            emit(BluetoothScanEvent.Message("PERMISSION", "Grant Bluetooth connect permission"))
             return
         }
-
         try {
-            bluetoothAdapter.bondedDevices.forEach(::addOrUpdate)
-            log(
-                "Bonded devices: " +
-                    bluetoothAdapter.bondedDevices.size
-            )
+            emit(BluetoothScanEvent.Adapter(true, bt.isEnabled))
+            if (!bt.isEnabled) return
+            val bonded = bt.bondedDevices
+            bonded.forEach { emit(BluetoothScanEvent.DeviceSeen(describe(it))) }
+            emit(BluetoothScanEvent.Message("PAIRED", "Paired devices: ${bonded.size}"))
         } catch (e: SecurityException) {
-            log("Permission error: ${e.message}")
+            emit(BluetoothScanEvent.Message("PERMISSION", e.message ?: "Access denied"))
         }
     }
 
     @SuppressLint("MissingPermission")
-    fun startDiscovery() {
-        val bluetoothAdapter = adapter ?: run {
-            log("No Bluetooth adapter")
+    fun discover() {
+        if (!hasConnectPermission() || !hasScanPermission()) {
+            emit(BluetoothScanEvent.Message("PERMISSION", "Grant Bluetooth scan/connect permissions"))
             return
         }
-
-        if (!bluetoothAdapter.isEnabled) {
-            log("Enable Bluetooth first")
+        val bt = adapter ?: run {
+            emit(BluetoothScanEvent.Message("ERROR", "No Bluetooth adapter"))
             return
         }
-
-        if (!hasScanPermission() || !hasConnectPermission()) {
-            log("Bluetooth permissions missing")
-            return
-        }
-
         try {
-            if (bluetoothAdapter.isDiscovering) {
-                bluetoothAdapter.cancelDiscovery()
+            if (!bt.isEnabled) {
+                emit(BluetoothScanEvent.Message("ERROR", "Bluetooth is disabled"))
+                return
             }
-
-            val started = bluetoothAdapter.startDiscovery()
-
-            _state.update { it.copy(scanning = started) }
-            log("Discovery start: $started")
+            if (bt.isDiscovering) bt.cancelDiscovery()
+            val started = bt.startDiscovery()
+            emit(BluetoothScanEvent.Scanning(started))
+            emit(BluetoothScanEvent.Message("DISCOVERY", "Classic discovery started=$started"))
         } catch (e: SecurityException) {
-            log("Discovery permission error: ${e.message}")
+            emit(BluetoothScanEvent.Message("PERMISSION", e.message ?: "Access denied"))
         }
     }
 
     @SuppressLint("MissingPermission")
-    fun fetchUuids(address: String) {
-        if (!hasConnectPermission()) {
-            log("BLUETOOTH_CONNECT permission missing")
+    fun requestSdp(address: String) {
+        if (!hasConnectPermission() || !hasScanPermission()) {
+            emit(BluetoothScanEvent.Message("PERMISSION", "Grant Bluetooth scan/connect permissions"))
             return
         }
-
-        val bluetoothAdapter = adapter ?: return
-
+        val bt = adapter ?: return
         try {
-            if (hasScanPermission() && bluetoothAdapter.isDiscovering) {
-                bluetoothAdapter.cancelDiscovery()
-            }
-
-            val device = bluetoothAdapter.getRemoteDevice(address)
-
-            val started = device.fetchUuidsWithSdp()
-
-            log("SDP requested for $address: $started")
-        } catch (e: Exception) {
-            log("SDP error: ${e.message}")
+            if (bt.isDiscovering) bt.cancelDiscovery()
+            val accepted = bt.getRemoteDevice(address).fetchUuidsWithSdp()
+            emit(BluetoothScanEvent.Message("SDP_REQUEST", "Accepted=$accepted", address))
+        } catch (e: IllegalArgumentException) {
+            emit(BluetoothScanEvent.Message("SDP_ERROR", "Invalid address: ${e.message}", address))
+        } catch (e: SecurityException) {
+            emit(BluetoothScanEvent.Message("PERMISSION", e.message ?: "Access denied", address))
         }
     }
 
     @SuppressLint("MissingPermission")
-    fun close() {
+    fun cancelDiscovery() {
+        if (!hasScanPermission()) return
+        try { if (adapter?.isDiscovering == true) adapter.cancelDiscovery() }
+        catch (_: SecurityException) { }
+    }
+
+    @SuppressLint("MissingPermission")
+    fun stop() {
         if (hasScanPermission()) {
             try {
-                if (adapter?.isDiscovering == true) {
-                    adapter?.cancelDiscovery()
-                }
-            } catch (_: SecurityException) {}
+                if (adapter?.isDiscovering == true) adapter.cancelDiscovery()
+            } catch (_: SecurityException) { }
         }
-
-        if (receiverRegistered) {
+        if (registered) {
             appContext.unregisterReceiver(receiver)
-            receiverRegistered = false
+            registered = false
         }
+        onEvent = null
     }
 }
