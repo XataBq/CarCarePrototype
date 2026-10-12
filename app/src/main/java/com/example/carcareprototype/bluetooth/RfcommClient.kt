@@ -1,18 +1,15 @@
 package com.example.carcareprototype.bluetooth
 
-import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothSocket
 import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.core.content.ContextCompat
 import java.io.IOException
 import java.util.UUID
 class RfcommClient(context: Context) {
     private val appContext = context.applicationContext
+    private val permissions = BluetoothPermissions(appContext)
     private val adapter = appContext.getSystemService(BluetoothManager::class.java)?.adapter
     private val lock = Any()
     private class Connection(val address: String) {
@@ -21,18 +18,9 @@ class RfcommClient(context: Context) {
     }
     private var current: Connection? = null
 
-    private fun hasConnectPermission() = Build.VERSION.SDK_INT < 31 ||
-        ContextCompat.checkSelfPermission(appContext, Manifest.permission.BLUETOOTH_CONNECT) ==
-        PackageManager.PERMISSION_GRANTED
-
-    private fun hasScanPermission() = if (Build.VERSION.SDK_INT >= 31) {
-        ContextCompat.checkSelfPermission(appContext, Manifest.permission.BLUETOOTH_SCAN) ==
-        PackageManager.PERMISSION_GRANTED
-    } else true
-
     @SuppressLint("MissingPermission")
     fun connect(address: String, onEvent: (BluetoothLinkEvent) -> Unit) {
-        if (!hasConnectPermission() || !hasScanPermission()) {
+        if (!permissions.canConnect() || !permissions.canCancelDiscovery()) {
             onEvent(BluetoothLinkEvent.Failure(LinkMode.RFCOMM, address, "Bluetooth permission missing"))
             return
         }
@@ -48,6 +36,7 @@ class RfcommClient(context: Context) {
         onEvent(BluetoothLinkEvent.Phase(LinkMode.RFCOMM, address, LinkPhase.CONNECTING, "Opening secure SPP RFCOMM"))
         Thread({
             var socket: BluetoothSocket? = null
+            var failed = false
             try {
                 val device = bt.getRemoteDevice(address)
                 check(device.bondState == BluetoothDevice.BOND_BONDED) {
@@ -80,6 +69,7 @@ class RfcommClient(context: Context) {
                 }
             } catch (e: Exception) {
                 if (!connection.stopped) {
+                    failed = true
                     onEvent(
                         BluetoothLinkEvent.Failure(
                         LinkMode.RFCOMM, address, "${e.javaClass.simpleName}: ${e.message}"
@@ -90,7 +80,7 @@ class RfcommClient(context: Context) {
                 val wasCurrent = synchronized(lock) {
                     if (current === connection) { current = null; true } else false
                 }
-                if (wasCurrent && !connection.stopped) {
+                if (wasCurrent && !connection.stopped && !failed) {
                     onEvent(BluetoothLinkEvent.Phase(LinkMode.RFCOMM, address, LinkPhase.IDLE, "SPP closed"))
                 }
             }
@@ -105,7 +95,7 @@ class RfcommClient(context: Context) {
     }
 
     companion object {
-        const val SPP_UUID_TEXT = "00001101-0000-1000-8000-00805f9b34fb"
+        const val SPP_UUID_TEXT = SPP_SERVICE_UUID
         val SPP_UUID: UUID = UUID.fromString(SPP_UUID_TEXT)
     }
 }

@@ -18,16 +18,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.carcareprototype.diagnostics.DiagnosticRepository
 
 @Composable
-internal fun DiagnosticScreen() {
+internal fun DiagnosticScreen(vm: DiagnosticViewModel = viewModel()) {
 
-    val state by DiagnosticRepository.state
+    val state by vm.state
         .collectAsStateWithLifecycle()
 
     Scaffold { padding ->
-
         Column(
             modifier = Modifier
                 .fillMaxSize()

@@ -1,8 +1,6 @@
 package com.example.carcareprototype.bluetooth
 
-import android.Manifest
 import android.content.Intent
-import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -27,12 +25,10 @@ fun BluetoothScreen(vm: BluetoothViewModel = viewModel()) {
     val adapter = state.adapterState
     val link = state.link
     val context = LocalContext.current
-    val busy = link.phase in setOf(LinkPhase.CONNECTING, LinkPhase.CONNECTED, LinkPhase.DISCOVERING, LinkPhase.READY)
+    val busy = link.isBusy
 
-    val permissions = remember {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN)
-        } else arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
+    val permissions = remember(context) {
+        BluetoothPermissions(context).requiredPermissions
     }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -131,11 +127,11 @@ fun BluetoothScreen(vm: BluetoothViewModel = viewModel()) {
                         }
                         OutlinedButton(
                             onClick = { vm.connectSpp(device.address) },
-                            enabled = !busy && device.bonded && RfcommClient.SPP_UUID_TEXT in device.uuids
+                            enabled = !busy && device.canConnectSpp
                         ) { Text("SPP") }
                         OutlinedButton(
                             onClick = { vm.connectGatt(device.address) },
-                            enabled = !busy && (device.observedBle || device.type == "BLE" || device.type == "Dual")
+                            enabled = !busy && device.canConnectGatt
                         ) { Text("GATT") }
                     }
                 }

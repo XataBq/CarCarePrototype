@@ -5,173 +5,173 @@ package com.example.carcareprototype.bluetooth.uuids
 
 
 internal object GattCharacteristicCatalog {
-    val entries: Map<Int, com.example.carcareprototype.bluetooth.uuids.UuidMeaning> = mapOf(
-        0x2A00 to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+    val entries: Map<Int, UuidMeaning> = mapOf(
+        0x2A00 to UuidMeaning(
             "Device Name",
             "Имя, которое устройство сообщает клиентам GATT",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A01 to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A01 to UuidMeaning(
             "Appearance",
             "Стандартный тип или внешний вид устройства",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A02 to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A02 to UuidMeaning(
             "Peripheral Privacy Flag",
             "Признак поддержки конфиденциальности адреса",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A03 to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A03 to UuidMeaning(
             "Reconnection Address",
             "Адрес для повторного подключения",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A04 to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A04 to UuidMeaning(
             "Preferred Connection Parameters",
             "Предпочтительные интервалы и параметры BLE-соединения",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A05 to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A05 to UuidMeaning(
             "Service Changed",
             "Уведомление об изменении структуры GATT",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A06 to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A06 to UuidMeaning(
             "Alert Level",
             "Уровень сигнала тревоги",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A07 to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A07 to UuidMeaning(
             "Tx Power Level",
             "Мощность передатчика",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A08 to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A08 to UuidMeaning(
             "Date Time",
             "Дата и время",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A09 to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A09 to UuidMeaning(
             "Day of Week",
             "День недели",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A0A to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A0A to UuidMeaning(
             "Day Date Time",
             "Дата, время и день недели",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A0D to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A0D to UuidMeaning(
             "DST Offset",
             "Смещение летнего времени",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A0E to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A0E to UuidMeaning(
             "Time Zone",
             "Часовой пояс",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A0F to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A0F to UuidMeaning(
             "Local Time Information",
             "Местное время и часовой пояс",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A16 to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A16 to UuidMeaning(
             "Time Update Control Point",
             "Запрос обновления времени",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A17 to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A17 to UuidMeaning(
             "Time Update State",
             "Состояние обновления времени",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A18 to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A18 to UuidMeaning(
             "Glucose Measurement",
             "Измерение уровня глюкозы",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A19 to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A19 to UuidMeaning(
             "Battery Level",
             "Заряд батареи, как правило в процентах",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A1C to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A1C to UuidMeaning(
             "Temperature Measurement",
             "Показание медицинского термометра",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A1D to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A1D to UuidMeaning(
             "Temperature Type",
             "Место или тип измерения температуры",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A1E to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A1E to UuidMeaning(
             "Intermediate Temperature",
             "Промежуточные измерения температуры",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A21 to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A21 to UuidMeaning(
             "Measurement Interval",
             "Период между измерениями",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A22 to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A22 to UuidMeaning(
             "Boot Keyboard Input Report",
             "Ввод клавиатуры в режиме Boot HID",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A23 to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A23 to UuidMeaning(
             "System ID",
             "Идентификатор системы устройства",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A24 to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A24 to UuidMeaning(
             "Model Number",
             "Модель устройства",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A25 to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A25 to UuidMeaning(
             "Serial Number",
             "Серийный номер устройства",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A26 to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A26 to UuidMeaning(
             "Firmware Revision",
             "Версия прошивки устройства",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A27 to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A27 to UuidMeaning(
             "Hardware Revision",
             "Ревизия аппаратной части",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A28 to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A28 to UuidMeaning(
             "Software Revision",
             "Версия программного обеспечения",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A29 to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A29 to UuidMeaning(
             "Manufacturer Name",
             "Название производителя устройства",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A2B to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A2B to UuidMeaning(
             "Current Time",
             "Текущее время",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A31 to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A31 to UuidMeaning(
             "Scan Refresh",
             "Сигнал необходимости обновления сканирования",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A32 to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A32 to UuidMeaning(
             "Boot Keyboard Output Report",
             "Выходные данные клавиатуры Boot HID",
-            _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidKind.GATT_CHARACTERISTIC
+            UuidKind.GATT_CHARACTERISTIC
         ),
-        0x2A33 to _root_ide_package_.com.example.carcareprototype.bluetooth.uuids.UuidMeaning(
+        0x2A33 to UuidMeaning(
             "Boot Mouse Input Report",
             "Ввод мыши в режиме Boot HID",
             UuidKind.GATT_CHARACTERISTIC

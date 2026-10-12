@@ -1,6 +1,5 @@
 package com.example.carcareprototype.bluetooth
 
-import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
@@ -8,37 +7,22 @@ import android.bluetooth.BluetoothManager
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.core.content.ContextCompat
 
 class BleScanner(context: Context) {
     private val appContext = context.applicationContext
+    private val permissions = BluetoothPermissions(appContext)
     private val adapter: BluetoothAdapter? =
         appContext.getSystemService(BluetoothManager::class.java)?.adapter
 
     private var callback: ((BluetoothScanEvent) -> Unit)? = null
     private var scanning = false
 
-    private fun connectAllowed() = Build.VERSION.SDK_INT < 31 ||
-        ContextCompat.checkSelfPermission(appContext, Manifest.permission.BLUETOOTH_CONNECT) ==
-        PackageManager.PERMISSION_GRANTED
-
-    private fun scanAllowed() = if (Build.VERSION.SDK_INT >= 31) {
-        ContextCompat.checkSelfPermission(appContext, Manifest.permission.BLUETOOTH_SCAN) ==
-            PackageManager.PERMISSION_GRANTED
-    } else {
-        ContextCompat.checkSelfPermission(appContext, Manifest.permission.ACCESS_FINE_LOCATION) ==
-            PackageManager.PERMISSION_GRANTED
-    }
-
     @SuppressLint("MissingPermission")
     private fun describe(result: ScanResult): BluetoothDeviceInfo {
         val device = result.device
         val type = when (device.type) {
-            BluetoothDevice.DEVICE_TYPE_DUAL -> "Dual"
-            BluetoothDevice.DEVICE_TYPE_LE -> "BLE"
-            else -> "BLE"
+            BluetoothDevice.DEVICE_TYPE_DUAL -> BluetoothDeviceType.DUAL
+            else -> BluetoothDeviceType.BLE
         }
         val advertised = result.scanRecord?.serviceUuids
             ?.map { it.uuid.toString() }.orEmpty()
@@ -80,7 +64,7 @@ class BleScanner(context: Context) {
     fun start(onEvent: (BluetoothScanEvent) -> Unit) {
         callback = onEvent
         if (scanning) return
-        if (!scanAllowed() || !connectAllowed()) {
+        if (!permissions.canScan() || !permissions.canConnect()) {
             onEvent(BluetoothScanEvent.Message("PERMISSION", "Grant Bluetooth scan/connect permissions"))
             return
         }
@@ -108,7 +92,7 @@ class BleScanner(context: Context) {
 
     @SuppressLint("MissingPermission")
     fun stop() {
-        if (scanning && scanAllowed()) {
+        if (scanning && permissions.canScan()) {
             try { adapter?.bluetoothLeScanner?.stopScan(scanCallback) }
             catch (_: SecurityException) { }
         }

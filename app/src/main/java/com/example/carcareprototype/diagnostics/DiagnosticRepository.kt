@@ -1,6 +1,9 @@
 package com.example.carcareprototype.diagnostics
 
 import android.util.Log
+import com.example.carcareprototype.bluetooth.BluetoothRepository.HistoryAction
+import com.example.carcareprototype.presentation.state.DiagnosticState
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -8,15 +11,9 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-data class DiagnosticState(
-    val androidAutoConnected: Boolean = false,
-    val mileageKm: Double? = null,
-    val mileageStatus: String = "NOT_REQUESTED",
-    val mileageTimestampMillis: Long? = null,
-    val logs: List<String> = emptyList(),
-)
-
 object DiagnosticRepository {
+
+    private val historyQueue = Channel<HistoryAction>(Channel.UNLIMITED)
 
     private val _state = MutableStateFlow(DiagnosticState())
     val state = _state.asStateFlow()
