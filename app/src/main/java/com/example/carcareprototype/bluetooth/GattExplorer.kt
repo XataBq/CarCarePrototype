@@ -1,6 +1,5 @@
 package com.example.carcareprototype.bluetooth
 
-import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
@@ -9,12 +8,10 @@ import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.bluetooth.BluetoothDevice
 import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.core.content.ContextCompat
 
 class GattExplorer(context: Context) {
     private val appContext = context.applicationContext
+    private val permissions = BluetoothPermissions(appContext)
     private val adapter = appContext.getSystemService(BluetoothManager::class.java)?.adapter
     private val lock = Any()
     private class Connection(val address: String) {
@@ -23,13 +20,9 @@ class GattExplorer(context: Context) {
     }
     private var current: Connection? = null
 
-    private fun hasConnectPermission() = Build.VERSION.SDK_INT < 31 ||
-        ContextCompat.checkSelfPermission(appContext, Manifest.permission.BLUETOOTH_CONNECT) ==
-        PackageManager.PERMISSION_GRANTED
-
     @SuppressLint("MissingPermission")
     fun connect(address: String, onEvent: (BluetoothLinkEvent) -> Unit) {
-        if (!hasConnectPermission()) {
+        if (!permissions.canConnect()) {
             onEvent(BluetoothLinkEvent.Failure(LinkMode.GATT, address, "Bluetooth CONNECT permission missing"))
             return
         }

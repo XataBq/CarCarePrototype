@@ -3,7 +3,6 @@ package com.example.carcareprototype.bluetooth.uuids
 import java.util.Locale
 import java.util.UUID
 
-/** Type of Bluetooth identifier. SDP services, GATT services and attributes are separate namespaces. */
 enum class UuidKind {
     CLASSIC_SERVICE,
     GATT_SERVICE,
@@ -19,7 +18,6 @@ data class UuidMeaning(
     val kind: UuidKind
 )
 
-/** Pure Kotlin dictionary. No Android Context, resources, database, or I/O required. */
 object BluetoothUuidCatalog {
     private const val SIG_SUFFIX = "-0000-1000-8000-00805f9b34fb"
     private val shortPattern = Regex("^(?:0x)?([0-9a-f]{4})$")
@@ -56,20 +54,9 @@ object BluetoothUuidCatalog {
     fun description(info: UuidMeaning?): String =
         info?.description ?: "Назначение не определено; возможно, собственный сервис производителя"
 
-    /** Preserve the technical identifier in UI and logs. */
-    fun displayLabel(uuid: String, info: UuidMeaning?): String =
-        "${displayName(info)} ($uuid)"
-
-    /** Normalize known UUID spelling for vendor lookup; no attempts to guess partial codes. */
     private fun normalize(uuid: String): String {
         val raw = uuid.trim().lowercase(Locale.ROOT)
         return assigned16(raw)?.let { String.format(Locale.ROOT, "%08x", it) + SIG_SUFFIX }
             ?: raw
     }
-
-    fun classic(uuid: UUID): UuidMeaning? = classic(uuid.toString())
-    fun gattService(uuid: UUID): UuidMeaning? = gattService(uuid.toString())
-    fun gattCharacteristic(serviceUuid: UUID, characteristicUuid: UUID): UuidMeaning? =
-        gattCharacteristic(serviceUuid.toString(), characteristicUuid.toString())
-    fun gattDescriptor(uuid: UUID): UuidMeaning? = gattDescriptor(uuid.toString())
 }

@@ -23,7 +23,7 @@ class CarConnectionService : CarAppService() {
 
     override fun onCreateSession(): Session {
         DiagnosticRepository.log("Car session requested")
-        return super.onCreateSession()
+        return CarSession()
     }
 }
 

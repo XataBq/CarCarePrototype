@@ -1,6 +1,5 @@
 package com.example.carcareprototype.bluetooth
 
-import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
@@ -9,8 +8,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.ParcelUuid
 import android.os.Parcelable
 import androidx.core.content.ContextCompat
@@ -19,6 +16,7 @@ import androidx.core.content.IntentCompat
 class BluetoothScanner(context: Context) {
 
     private val appContext = context.applicationContext
+    private val permissions = BluetoothPermissions(appContext)
     private val adapter: BluetoothAdapter? =
         appContext.getSystemService(BluetoothManager::class.java)?.adapter
 
@@ -29,23 +27,6 @@ class BluetoothScanner(context: Context) {
         onEvent?.invoke(event)
     }
 
-    private fun hasConnectPermission() =
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
-            ContextCompat.checkSelfPermission(
-                appContext, Manifest.permission.BLUETOOTH_CONNECT
-            ) == PackageManager.PERMISSION_GRANTED
-
-    private fun hasScanPermission() =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            ContextCompat.checkSelfPermission(
-                appContext, Manifest.permission.BLUETOOTH_SCAN
-            ) == PackageManager.PERMISSION_GRANTED
-        } else {
-            ContextCompat.checkSelfPermission(
-                appContext, Manifest.permission.ACCESS_FINE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-        }
-
     @SuppressLint("MissingPermission")
     private fun describe(
         device: BluetoothDevice,
@@ -53,10 +34,10 @@ class BluetoothScanner(context: Context) {
         rssi: Int? = null
     ): BluetoothDeviceInfo {
         val type = when (device.type) {
-            BluetoothDevice.DEVICE_TYPE_CLASSIC -> "Classic"
-            BluetoothDevice.DEVICE_TYPE_LE -> "BLE"
-            BluetoothDevice.DEVICE_TYPE_DUAL -> "Dual"
-            else -> "Unknown"
+            BluetoothDevice.DEVICE_TYPE_CLASSIC -> BluetoothDeviceType.CLASSIC
+            BluetoothDevice.DEVICE_TYPE_LE -> BluetoothDeviceType.BLE
+            BluetoothDevice.DEVICE_TYPE_DUAL -> BluetoothDeviceType.DUAL
+            else -> BluetoothDeviceType.UNKNOWN
         }
         val name = reportedName?.takeIf { it.isNotBlank() }
             ?: device.name?.takeIf { it.isNotBlank() }
@@ -70,7 +51,7 @@ class BluetoothScanner(context: Context) {
             type = type,
             rssi = rssi,
             uuids = cachedUuids,
-            uuidSource = if (cachedUuids.isEmpty()) "NONE" else "CACHED"
+            uuidSource = if (cachedUuids.isEmpty()) BluetoothUuidSource.NONE else BluetoothUuidSource.CACHED
         )
     }
 
@@ -87,19 +68,20 @@ class BluetoothScanner(context: Context) {
                     BluetoothDevice.ACTION_FOUND,
                     BluetoothDevice.ACTION_NAME_CHANGED,
                     BluetoothDevice.ACTION_BOND_STATE_CHANGED -> {
-                        if (!hasConnectPermission()) return
+                        if (!permissions.canConnect()) return
                         val device = intent.bluetoothDevice() ?: return
                         val rssi = if (intent.hasExtra(BluetoothDevice.EXTRA_RSSI)) {
                             intent.getShortExtra(
                                 BluetoothDevice.EXTRA_RSSI, Short.MIN_VALUE
                             ).toInt()
                         } else null
+                        if (rssi != null && rssi < MIN_RSSI_THRESHOLD) return
                         emit(BluetoothScanEvent.DeviceSeen(
                             describe(device, intent.getStringExtra(BluetoothDevice.EXTRA_NAME), rssi)
                         ))
                     }
                     BluetoothDevice.ACTION_UUID -> {
-                        if (!hasConnectPermission()) return
+                        if (!permissions.canConnect()) return
                         val device = intent.bluetoothDevice() ?: return
 
                         val parcelables: Array<Parcelable>? =
@@ -152,7 +134,7 @@ class BluetoothScanner(context: Context) {
             emit(BluetoothScanEvent.Adapter(false, false))
             return
         }
-        if (!hasConnectPermission()) {
+        if (!permissions.canConnect()) {
             emit(BluetoothScanEvent.Message("PERMISSION", "Grant Bluetooth connect permission"))
             return
         }
@@ -169,7 +151,7 @@ class BluetoothScanner(context: Context) {
 
     @SuppressLint("MissingPermission")
     fun discover() {
-        if (!hasConnectPermission() || !hasScanPermission()) {
+        if (!permissions.canConnect() || !permissions.canScan()) {
             emit(BluetoothScanEvent.Message("PERMISSION", "Grant Bluetooth scan/connect permissions"))
             return
         }
@@ -193,7 +175,7 @@ class BluetoothScanner(context: Context) {
 
     @SuppressLint("MissingPermission")
     fun requestSdp(address: String) {
-        if (!hasConnectPermission() || !hasScanPermission()) {
+        if (!permissions.canConnect() || !permissions.canScan()) {
             emit(BluetoothScanEvent.Message("PERMISSION", "Grant Bluetooth scan/connect permissions"))
             return
         }
@@ -211,22 +193,22 @@ class BluetoothScanner(context: Context) {
 
     @SuppressLint("MissingPermission")
     fun cancelDiscovery() {
-        if (!hasScanPermission()) return
+        if (!permissions.canCancelDiscovery()) return
         try { if (adapter?.isDiscovering == true) adapter.cancelDiscovery() }
         catch (_: SecurityException) { }
     }
 
     @SuppressLint("MissingPermission")
     fun stop() {
-        if (hasScanPermission()) {
-            try {
-                if (adapter?.isDiscovering == true) adapter.cancelDiscovery()
-            } catch (_: SecurityException) { }
-        }
+        cancelDiscovery()
         if (registered) {
             appContext.unregisterReceiver(receiver)
             registered = false
         }
         onEvent = null
+    }
+
+    private companion object {
+        const val MIN_RSSI_THRESHOLD = -85
     }
 }

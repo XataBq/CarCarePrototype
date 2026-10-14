@@ -2,17 +2,33 @@ package com.example.carcareprototype.bluetooth
 
 import java.util.UUID
 
+internal const val SPP_SERVICE_UUID = "00001101-0000-1000-8000-00805f9b34fb"
+
+enum class BluetoothDeviceType(private val label: String) {
+    CLASSIC("Classic"), BLE("BLE"), DUAL("Dual"), UNKNOWN("Unknown");
+
+    override fun toString(): String = label
+}
+
+enum class BluetoothUuidSource { NONE, CACHED, SDP }
+
 data class BluetoothDeviceInfo(
     val name: String,
     val address: String,
     val bonded: Boolean,
-    val type: String,
+    val type: BluetoothDeviceType,
     val rssi: Int? = null,
     val uuids: List<String> = emptyList(),
-    val uuidSource: String = "NONE",
+    val uuidSource: BluetoothUuidSource = BluetoothUuidSource.NONE,
     val bleAdvertisedUuids: List<String> = emptyList(),
     val observedBle: Boolean = false
-)
+) {
+    val canConnectSpp: Boolean
+        get() = bonded && SPP_SERVICE_UUID in uuids
+
+    val canConnectGatt: Boolean
+        get() = observedBle || type == BluetoothDeviceType.BLE || type == BluetoothDeviceType.DUAL
+}
 
 data class BluetoothAdapterState(
     val available: Boolean = false,
@@ -48,7 +64,13 @@ data class BluetoothLinkState(
     val address: String? = null,
     val services: List<GattServiceInfo> = emptyList(),
     val error: String? = null
-)
+) {
+    val isBusy: Boolean
+        get() = when (phase) {
+            LinkPhase.CONNECTING, LinkPhase.CONNECTED, LinkPhase.DISCOVERING, LinkPhase.READY -> true
+            LinkPhase.IDLE, LinkPhase.FAILED -> false
+        }
+}
 data class BluetoothUiState(
     val devices: List<BluetoothDeviceInfo> = emptyList(),
     val adapterState: BluetoothAdapterState = BluetoothAdapterState(),
