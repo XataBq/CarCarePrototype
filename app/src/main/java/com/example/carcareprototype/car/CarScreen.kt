@@ -2,6 +2,8 @@ package com.example.carcareprototype.car
 
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
+import androidx.car.app.model.Action
+import androidx.car.app.model.ParkedOnlyOnClickListener
 import androidx.car.app.model.Pane
 import androidx.car.app.model.PaneTemplate
 import androidx.car.app.model.Row
@@ -16,7 +18,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 class CarScreen(
-    carContext: CarContext
+    carContext: CarContext,
+    private val onRequestMileagePermission: () -> Unit
 ) : Screen(carContext), DefaultLifecycleObserver {
     private var stateJob: Job? = null
 
@@ -60,9 +63,17 @@ class CarScreen(
                     .addText(state.mileageStatus)
                     .build()
             )
-            .build()
 
-        return PaneTemplate.Builder(pane)
+        if (!CarMileagePermission.isGranted(carContext)) {
+            pane.addAction(
+                Action.Builder()
+                    .setTitle("Allow mileage access")
+                    .setOnClickListener(ParkedOnlyOnClickListener.create { onRequestMileagePermission() })
+                    .build()
+            )
+        }
+
+        return PaneTemplate.Builder(pane.build())
             .setTitle("Car Connection Tester")
             .build()
     }
