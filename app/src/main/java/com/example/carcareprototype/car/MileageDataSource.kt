@@ -33,7 +33,7 @@ internal class MileageDataSource(
         val valueKm = if (
             odometer.status == CarValue.STATUS_SUCCESS
         ) {
-            odometer.value?.let { it.toDouble() / 1_000.0 }
+            odometer.value?.toDouble()
         } else { null }
 
         DiagnosticRepository.setMileage(
