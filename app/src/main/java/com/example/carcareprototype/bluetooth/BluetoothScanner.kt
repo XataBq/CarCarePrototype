@@ -75,6 +75,7 @@ class BluetoothScanner(context: Context) {
                                 BluetoothDevice.EXTRA_RSSI, Short.MIN_VALUE
                             ).toInt()
                         } else null
+                        if (rssi != null && rssi < MIN_RSSI_THRESHOLD) return
                         emit(BluetoothScanEvent.DeviceSeen(
                             describe(device, intent.getStringExtra(BluetoothDevice.EXTRA_NAME), rssi)
                         ))
@@ -205,5 +206,9 @@ class BluetoothScanner(context: Context) {
             registered = false
         }
         onEvent = null
+    }
+
+    private companion object {
+        const val MIN_RSSI_THRESHOLD = -85
     }
 }

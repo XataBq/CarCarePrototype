@@ -1,8 +1,8 @@
 package com.example.carcareprototype.diagnostics
 
 import android.util.Log
-import com.example.carcareprototype.bluetooth.BluetoothRepository.HistoryAction
 import com.example.carcareprototype.presentation.state.DiagnosticState
+import com.example.carcareprototype.store.HistoryAction
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow

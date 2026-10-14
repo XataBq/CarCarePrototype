@@ -3,6 +3,7 @@ package com.example.carcareprototype.bluetooth
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import com.example.carcareprototype.store.HistoryAction
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -32,11 +33,7 @@ class BluetoothRepository(context: Context) {
     private val linkLock = Any()
     private var linkSessionId = 0L
 
-    private sealed interface HistoryAction {
-        data class Append(val record: BluetoothRecord) : HistoryAction
-        data object Clear : HistoryAction
-        data class Export(val uri: Uri) : HistoryAction
-    }
+
 
     private val historyQueue = Channel<HistoryAction>(Channel.UNLIMITED)
     private val historyScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
