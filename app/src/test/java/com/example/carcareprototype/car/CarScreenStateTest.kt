@@ -1,48 +1,37 @@
 package com.example.carcareprototype.car
 
 import com.example.carcareprototype.presentation.state.DiagnosticState
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.runBlocking
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
+import org.junit.Assert.*
 import org.junit.Test
 
 class CarScreenStateTest {
-    @Test
-    fun logsAndTimestampDoNotChangeVisibleState() {
-        val state = DiagnosticState(mileageKm = 100.0, mileageStatus = "SUCCESS")
-        assertEquals(
-            state.toCarScreenState(),
-            state.copy(logs = listOf("Manual event"), mileageTimestampMillis = 42L).toCarScreenState()
-        )
+    private val mileage = MileageState(requestStatus = "SUCCESS", lastSuccess = MileageReading(45.2, 1000, "a"), receivedInCurrentAttempt = true)
+
+    @Test fun logsDoNotInvalidateCarTemplate() {
+        val state = DiagnosticState(mileage = mileage)
+        assertEquals(state.toCarScreenState(), state.copy(logs = listOf("event")).toCarScreenState())
     }
 
-    @Test
-    fun onlyChangesToDisplayedFieldsEmitNewState() = runBlocking {
-        val state = DiagnosticState(mileageKm = 100.01, mileageStatus = "SUCCESS")
-        val visible = flowOf(
-            state,
-            state.copy(logs = listOf("Manual event")),
-            state.copy(mileageTimestampMillis = 42L),
-            state.copy(mileageKm = 100.02),
-            state.copy(mileageKm = 101.0),
-            state.copy(mileageStatus = "UNAVAILABLE"),
-            state.copy(androidAutoConnected = true)
-        ).map { it.toCarScreenState() }.distinctUntilChanged().toList()
-        assertEquals(4, visible.size)
-        assertNotEquals(visible[0].mileageText, visible[1].mileageText)
-        assertEquals("UNAVAILABLE", visible[2].mileageStatus)
-        assertEquals("Car session active", visible[3].connectionText)
+    @Test fun receiptTimeAndFreshnessAreVisible() {
+        val state = DiagnosticState(mileage = mileage)
+        assertNotEquals(state.toCarScreenState(), state.copy(mileage = mileage.copy(lastSuccess = mileage.lastSuccess!!.copy(receivedAtMillis = 5000))).toCarScreenState())
+        assertNotEquals(state.toCarScreenState(), state.copy(mileage = mileage.copy(receivedInCurrentAttempt = false)).toCarScreenState())
     }
 
-    @Test
-    fun missingMileageKeepsExistingDisplayText() {
+    @Test fun timeoutDoesNotHideLastReplyOrLastReading() {
+        val reply = MileageReply(null, 0, 0, 2000, 2000, 2000000)
+        val visible = DiagnosticState(mileage = mileage.copy(requestStatus = "NO_VALID_DATA_TIMEOUT", lastReply = reply, receivedInCurrentAttempt = false)).toCarScreenState()
+        assertEquals("NO_VALID_DATA_TIMEOUT", visible.mileageStatus)
+        assertEquals("UNKNOWN: null km", visible.responseText)
+        assertTrue(visible.mileageText.endsWith(" km"))
+        assertEquals("PREVIOUS_READING", visible.freshness)
+    }
+
+    @Test fun missingMileageHasNoClaimOfOdometer() {
         val visible = DiagnosticState().toCarScreenState()
         assertEquals("No data", visible.mileageText)
         assertEquals("Waiting for car host", visible.connectionText)
         assertEquals("NOT_REQUESTED", visible.mileageStatus)
+        assertEquals("NO_READING", visible.freshness)
     }
 }
