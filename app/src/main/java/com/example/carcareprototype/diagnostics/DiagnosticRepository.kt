@@ -6,6 +6,8 @@ import com.example.carcareprototype.car.CarDiagnosticStore
 import com.example.carcareprototype.car.CarLogRecord
 import com.example.carcareprototype.car.CarLogSnapshot
 import com.example.carcareprototype.car.CarSessionTracker
+import com.example.carcareprototype.car.MileageState
+import com.example.carcareprototype.car.MileageStateScope
 import com.example.carcareprototype.presentation.state.DiagnosticState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -28,9 +30,8 @@ object DiagnosticRepository {
             val kind: Kind = Kind.LOG,
             val token: String? = null,
             val carId: String? = null,
-            val mileageKm: Double? = null,
-            val mileageStatus: String? = null,
-            val mileageTimestamp: Long? = null
+            val mileage: MileageState? = null,
+            val revision: Long? = null
         ) : Action
         data class Snapshot(val sessionId: String?, val startOffset: Long, val result: CompletableDeferred<CarLogSnapshot>) : Action
     }
@@ -41,6 +42,8 @@ object DiagnosticRepository {
     private var initialized = false
     private val _state = MutableStateFlow(DiagnosticState())
     val state = _state.asStateFlow()
+    private val _mileageRevision = MutableStateFlow(0L)
+    internal val mileageRevision = _mileageRevision.asStateFlow()
 
     @Synchronized
     fun initialize(context: Context) {
@@ -52,6 +55,7 @@ object DiagnosticRepository {
             val preferences = app.getSharedPreferences("car_diagnostics", 0)
             var selectedCarId = preferences.getString("car_id", null)
             val tracker = CarSessionTracker()
+            val mileageScope = MileageStateScope()
             val restored = persist { store.readLast() }.mapNotNull { line ->
                 runCatching { CarLogRecord.fromJson(line) }
                     .onFailure { Log.w(LOG_NAME, "Ignoring malformed history entry", it) }.getOrNull()
@@ -85,21 +89,24 @@ object DiagnosticRepository {
                             Kind.CONNECT -> {
                                 tracker.connect(action.token!!, selectedCarId, action.timestamp, persist { store.size() })
                                 includeInSession = true
-                                _state.update { it.copy(androidAutoConnected = true) }
+                                mileageScope.connect(action.token, selectedCarId)
+                                _state.update { it.copy(androidAutoConnected = true, mileage = mileageScope.state) }
                             }
                             Kind.DISCONNECT -> {
                                 includeInSession = tracker.disconnect(action.token!!, action.timestamp)
-                                _state.update { it.copy(androidAutoConnected = false) }
+                                mileageScope.disconnect(action.token)
+                                _state.update { it.copy(androidAutoConnected = false, mileage = mileageScope.state) }
                             }
                             Kind.SELECT_CAR -> {
                                 persist { check(preferences.edit().putString("car_id", action.carId).commit()) }
                                 selectedCarId = action.carId
                                 tracker.changeCar(selectedCarId, persist { store.size() })
-                                _state.update { it.copy(selectedCarId = selectedCarId.orEmpty()) }
+                                mileageScope.selectCar(selectedCarId)
+                                _state.update { it.copy(selectedCarId = selectedCarId.orEmpty(), mileage = mileageScope.state) }
                             }
-                            Kind.MILEAGE -> _state.update {
-                                it.copy(mileageKm = action.mileageKm, mileageStatus = action.mileageStatus!!,
-                                    mileageTimestampMillis = action.mileageTimestamp)
+                            Kind.MILEAGE -> {
+                                if (!mileageScope.update(action.token, action.revision, mileageRevision.value, action.mileage!!)) continue
+                                _state.update { it.copy(mileage = mileageScope.state) }
                             }
                             Kind.LOG -> Unit
                         }
@@ -149,6 +156,8 @@ object DiagnosticRepository {
         require(normalized == null || (normalized.length <= 80 && normalized.none(Char::isISOControl)))
         enqueue(Action.Event(System.currentTimeMillis(), "Selected car: ${normalized ?: "unidentified"}",
             Kind.SELECT_CAR, carId = normalized))
+        // Callers are on main: enqueue the reset before waking the subscription collector.
+        _mileageRevision.update { it + 1 }
     }
 
     fun connectCar(token: String) = enqueue(Action.Event(
@@ -159,11 +168,10 @@ object DiagnosticRepository {
         System.currentTimeMillis(), "Car Host Disconnected", Kind.DISCONNECT, token
     ))
 
-    fun setMileage(mileageKm: Double?, status: String, timestampMillis: Long? = null, connectionToken: String? = null) {
+    internal fun updateMileage(mileage: MileageState, connectionToken: String, revision: Long, message: String) {
         enqueue(Action.Event(System.currentTimeMillis(),
-            "Mileage update: value=$mileageKm km, status=$status, timestamp=$timestampMillis",
-            Kind.MILEAGE, connectionToken, mileageKm = mileageKm,
-            mileageStatus = status, mileageTimestamp = timestampMillis))
+            "connection=$connectionToken $message",
+            Kind.MILEAGE, connectionToken, mileage = mileage, revision = revision))
     }
 
     fun log(message: String, connectionToken: String? = null) = enqueue(

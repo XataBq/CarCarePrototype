@@ -1,10 +1,10 @@
 package com.example.carcareprototype.presentation.state
 
+import com.example.carcareprototype.car.MileageState
+
 data class DiagnosticState(
     val androidAutoConnected: Boolean = false,
-    val mileageKm: Double? = null,
-    val mileageStatus: String = "NOT_REQUESTED",
-    val mileageTimestampMillis: Long? = null,
+    val mileage: MileageState = MileageState(),
     val logs: List<String> = emptyList(),
     val storageError: String? = null,
     val selectedCarId: String = "",

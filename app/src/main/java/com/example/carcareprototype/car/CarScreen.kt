@@ -19,7 +19,9 @@ import kotlinx.coroutines.launch
 
 class CarScreen(
     carContext: CarContext,
-    private val onRequestMileagePermission: () -> Unit
+    private val connectionToken: String,
+    private val onRequestMileagePermission: () -> Unit,
+    private val onRetryMileage: () -> Unit,
 ) : Screen(carContext), DefaultLifecycleObserver {
     private var stateJob: Job? = null
 
@@ -28,6 +30,7 @@ class CarScreen(
     }
 
     override fun onStart(owner: LifecycleOwner) {
+        DiagnosticRepository.log("CarScreen ON_START connection=$connectionToken", connectionToken)
         stateJob = lifecycleScope.launch {
             DiagnosticRepository.state
                 .map { it.toCarScreenState() }
@@ -37,8 +40,13 @@ class CarScreen(
     }
 
     override fun onStop(owner: LifecycleOwner) {
+        DiagnosticRepository.log("CarScreen ON_STOP connection=$connectionToken", connectionToken)
         stateJob?.cancel()
         stateJob = null
+    }
+
+    override fun onDestroy(owner: LifecycleOwner) {
+        DiagnosticRepository.log("CarScreen ON_DESTROY connection=$connectionToken", connectionToken)
     }
 
     override fun onGetTemplate(): Template {
@@ -53,16 +61,23 @@ class CarScreen(
             )
             .addRow(
                 Row.Builder()
-                    .setTitle("Odometr")
+                    .setTitle("Last received (UNVERIFIED)")
                     .addText(state.mileageText)
+                    .addText(state.receiptText)
                     .build()
             )
             .addRow(
                 Row.Builder()
-                    .setTitle("Mileage API status")
+                    .setTitle("Current request / last API response")
                     .addText(state.mileageStatus)
+                    .addText(state.responseText)
                     .build()
             )
+
+        pane.addRow(Row.Builder().setTitle("Android Auto Car Hardware API")
+            .addText(state.freshness).build())
+        pane.addAction(Action.Builder().setTitle("Retry mileage")
+            .setOnClickListener(ParkedOnlyOnClickListener.create { onRetryMileage() }).build())
 
         if (!CarMileagePermission.isGranted(carContext)) {
             pane.addAction(
