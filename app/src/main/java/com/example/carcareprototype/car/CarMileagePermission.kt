@@ -12,9 +12,16 @@ internal object CarMileagePermission {
 
     private val revision = MutableStateFlow(0L)
     val changes = revision.asStateFlow()
+    var lastRequestDenied: Boolean = false
+        private set
 
     fun isGranted(context: Context): Boolean =
         ContextCompat.checkSelfPermission(context, NAME) == PackageManager.PERMISSION_GRANTED
 
     fun refresh() = revision.update { it + 1 }
+
+    fun reportRequestResult(granted: Boolean) {
+        lastRequestDenied = !granted
+        refresh()
+    }
 }

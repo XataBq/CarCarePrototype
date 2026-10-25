@@ -7,6 +7,11 @@ import androidx.car.app.validation.HostValidator
 import com.example.carcareprototype.diagnostics.DiagnosticRepository
 
 class CarConnectionService : CarAppService() {
+    override fun onCreate() {
+        super.onCreate()
+        DiagnosticRepository.log("CarAppService created")
+    }
+
     override fun createHostValidator(): HostValidator {
         val isDebug = applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
 

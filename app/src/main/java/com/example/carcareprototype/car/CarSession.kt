@@ -18,7 +18,11 @@ class CarSession : Session(), DefaultLifecycleObserver {
     private val connectionToken = UUID.randomUUID().toString()
 
     init {
+        DiagnosticRepository.log("CarSession created connection=$connectionToken")
         lifecycle.addObserver(this)
+        lifecycleScope.launch {
+            DiagnosticRepository.mileageRevision.collect { mileageDataSource?.identityChanged() }
+        }
         lifecycleScope.launch {
             lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 CarMileagePermission.changes.collect { mileageDataSource?.start() }
@@ -27,28 +31,35 @@ class CarSession : Session(), DefaultLifecycleObserver {
     }
 
     override fun onCreateScreen(intent: Intent): Screen {
-        DiagnosticRepository.connectCar(connectionToken)
-        DiagnosticRepository.log("Car Screen created", connectionToken)
-
-        mileageDataSource = MileageDataSource(carContext, connectionToken)
-
-        return CarScreen(carContext) { mileageDataSource?.requestPermission() }
+        if (mileageDataSource == null) {
+            DiagnosticRepository.connectCar(connectionToken)
+            mileageDataSource = MileageDataSource(carContext, connectionToken) {
+                lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+            }
+        }
+        DiagnosticRepository.log("CarScreen created connection=$connectionToken", connectionToken)
+        return CarScreen(carContext, connectionToken,
+            onRequestMileagePermission = { mileageDataSource?.requestPermission() },
+            onRetryMileage = { mileageDataSource?.retry() })
     }
 
     override fun onStart(owner: LifecycleOwner) {
-        DiagnosticRepository.log("Car session started", connectionToken)
+        DiagnosticRepository.log("CarSession ON_START connection=$connectionToken", connectionToken)
+        MileageRetry.attach(connectionToken) { mileageDataSource?.retry() }
     }
 
     override fun onStop(owner: LifecycleOwner) {
+        MileageRetry.detach(connectionToken)
         mileageDataSource?.stop()
-        DiagnosticRepository.log("Car screen stopped", connectionToken)
+        DiagnosticRepository.log("CarSession ON_STOP connection=$connectionToken", connectionToken)
     }
 
     override fun onDestroy(owner: LifecycleOwner) {
-        mileageDataSource?.stop()
+        MileageRetry.detach(connectionToken)
+        mileageDataSource?.stop("ON_DESTROY")
         mileageDataSource = null
 
-        DiagnosticRepository.log("Car session destroyed", connectionToken)
+        DiagnosticRepository.log("CarSession ON_DESTROY connection=$connectionToken", connectionToken)
         DiagnosticRepository.disconnectCar(connectionToken)
     }
 }

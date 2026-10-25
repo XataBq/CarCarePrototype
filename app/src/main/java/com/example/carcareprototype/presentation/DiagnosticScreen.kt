@@ -41,11 +41,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.carcareprototype.car.CarLogExportMode
 import com.example.carcareprototype.car.CarMileagePermission
+import com.example.carcareprototype.car.MileageRetry
+import com.example.carcareprototype.car.toCarScreenState
 import com.example.carcareprototype.diagnostics.DiagnosticRepository
 
 @Composable
 internal fun DiagnosticScreen(vm: DiagnosticViewModel = viewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val mileageDisplay = state.toCarScreenState()
+    val retryFeedback by MileageRetry.feedback.collectAsStateWithLifecycle()
     val export by vm.export.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var editingCar by rememberSaveable { mutableStateOf(false) }
@@ -56,7 +60,8 @@ internal fun DiagnosticScreen(vm: DiagnosticViewModel = viewModel()) {
     val mileagePermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         mileagePermissionGranted = granted && CarMileagePermission.isGranted(context)
         permissionDenied = !mileagePermissionGranted
-        CarMileagePermission.refresh()
+        CarMileagePermission.reportRequestResult(mileagePermissionGranted)
+        DiagnosticRepository.log("Phone mileage permission result granted=$mileagePermissionGranted")
     }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         mileagePermissionGranted = CarMileagePermission.isGranted(context)
@@ -91,12 +96,15 @@ internal fun DiagnosticScreen(vm: DiagnosticViewModel = viewModel()) {
                     }
                 }
                 HorizontalDivider()
-                Text("Odometer: " + (state.mileageKm?.let { "%.1f km".format(it) } ?: "No data"),
+                Text("Last received: ${mileageDisplay.mileageText}",
                     style = MaterialTheme.typography.titleLarge)
-                Text("Status: ${state.mileageStatus}")
-                Text("Timestamp: ${state.mileageTimestampMillis ?: "N/A"}",
-                    style = MaterialTheme.typography.bodySmall)
+                Text("Current request: ${mileageDisplay.mileageStatus}")
+                Text(mileageDisplay.receiptText + " • " + mileageDisplay.freshness, style = MaterialTheme.typography.bodySmall)
+                Text("Last API: ${mileageDisplay.responseText}; raw timestamp: ${state.mileage.lastReply?.rawTimestamp ?: "N/A"}", style = MaterialTheme.typography.bodySmall)
                 Text("Source: Android Auto Car Hardware API", style = MaterialTheme.typography.bodySmall)
+                Text("Mileage verification: UNVERIFIED — compare with dashboard; not used for maintenance", style = MaterialTheme.typography.bodySmall)
+                TextButton(onClick = MileageRetry::request) { Text("Retry mileage") }
+                retryFeedback?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                 if (!mileagePermissionGranted) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(if (permissionDenied) "Mileage access denied" else "Mileage permission required",
@@ -169,7 +177,7 @@ internal fun DiagnosticScreen(vm: DiagnosticViewModel = viewModel()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(value = carId, onValueChange = { carId = it.take(80) },
                         label = { Text("Unique name for this car") }, singleLine = true)
-                    Text("Use the same ID to combine reconnects within 2 minutes. A different ID starts a new session.")
+                    Text("Manual label, not verified vehicle identity. Reconnects within 2 minutes share logs. Changing this label or reconnecting clears the displayed mileage.")
                 }
             },
             confirmButton = {
