@@ -6,7 +6,6 @@ import com.example.carcareprototype.diagnostics.DiagnosticRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** Main-thread command routing. A stopped/destroyed session never owns a retry callback. */
 internal object MileageRetry {
     private val handler = Handler(Looper.getMainLooper())
     private var owner: String? = null
@@ -27,7 +26,6 @@ internal object MileageRetry {
     }
 
     fun request() {
-        // Capture owner now so an enqueued click cannot act on a different connection.
         check(Looper.myLooper() == Looper.getMainLooper())
         val expectedOwner = owner
         val expectedAction = retry

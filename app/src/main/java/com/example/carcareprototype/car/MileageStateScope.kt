@@ -1,6 +1,5 @@
 package com.example.carcareprototype.car
 
-/** IO-actor-owned scope; log-session grouping never establishes mileage identity. */
 internal class MileageStateScope {
     private var connectionToken: String? = null
     var carId: String? = null
@@ -17,7 +16,6 @@ internal class MileageStateScope {
 
     fun selectCar(selectedCarId: String?) {
         carId = selectedCarId
-        // Even re-entering a manual label cannot verify physical identity.
         state = MileageState()
     }
 

@@ -11,7 +11,6 @@ internal fun interface MileageScheduler {
     fun schedule(delayMillis: Long, action: () -> Unit): () -> Unit
 }
 
-/** Confined to the main thread by MileageDataSource. Pure to allow deterministic lifecycle tests. */
 internal class MileageSubscription(
     private val backend: MileageBackend,
     private val scheduler: MileageScheduler,
@@ -43,7 +42,6 @@ internal class MileageSubscription(
             return
         }
         if (attempt != null) return
-        // A failed removal retains ownership; never register a second listener over it.
         if (!remove("before registration")) return
         attempt = UUID.randomUUID().toString()
         val id = attempt!!

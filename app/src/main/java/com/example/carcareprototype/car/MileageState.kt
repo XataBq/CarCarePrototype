@@ -1,6 +1,5 @@
 package com.example.carcareprototype.car
 
-/** Receipt time is local wall time; API timestamps are kept verbatim, never converted. */
 data class MileageReply(
     val rawValueKm: Double?,
     val rawStatus: Int,
@@ -26,7 +25,6 @@ data class MileageState(
     val attemptId: String? = null,
     val lastReply: MileageReply? = null,
     val lastSuccess: MileageReading? = null,
-    // True only for the latest valid callback of the active attempt. No claim about sensor age.
     val receivedInCurrentAttempt: Boolean = false,
 ) {
     val freshness: String get() = when {
