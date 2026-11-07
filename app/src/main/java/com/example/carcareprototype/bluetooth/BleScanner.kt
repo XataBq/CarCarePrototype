@@ -16,6 +16,7 @@ class BleScanner(context: Context) {
 
     private var callback: ((BluetoothScanEvent) -> Unit)? = null
     private var scanning = false
+    private var activeScan: ScanCallback? = null
 
     @SuppressLint("MissingPermission")
     private fun describe(result: ScanResult): BluetoothDeviceInfo {
@@ -40,12 +41,18 @@ class BleScanner(context: Context) {
         )
     }
 
-    private val scanCallback = object : ScanCallback() {
-        override fun onScanResult(callbackType: Int, result: ScanResult) = handleScanResult(result)
+    private fun newScanCallback() = object : ScanCallback() {
+        override fun onScanResult(callbackType: Int, result: ScanResult) {
+            if (activeScan === this) handleScanResult(result)
+        }
 
-        override fun onBatchScanResults(results: MutableList<ScanResult>) = results.forEach(::handleScanResult)
+        override fun onBatchScanResults(results: MutableList<ScanResult>) {
+            if (activeScan === this) results.forEach(::handleScanResult)
+        }
 
         override fun onScanFailed(errorCode: Int) {
+            if (activeScan !== this) return
+            activeScan = null
             scanning = false
             callback?.invoke(BluetoothScanEvent.BleScanning(false))
             callback?.invoke(BluetoothScanEvent.Message("BLE_SCAN_ERROR", "Scan failed: $errorCode"))
@@ -79,21 +86,27 @@ class BleScanner(context: Context) {
             return
         }
         try {
+            val scanCallback = newScanCallback()
+            activeScan = scanCallback
             le.startScan(scanCallback)
             scanning = true
             onEvent(BluetoothScanEvent.BleScanning(true))
             onEvent(BluetoothScanEvent.Message("BLE_SCAN", "Started BLE scan"))
         } catch (e: SecurityException) {
+            activeScan = null
             onEvent(BluetoothScanEvent.Message("BLE_PERMISSION", e.message ?: "Permission denied"))
         } catch (e: IllegalStateException) {
+            activeScan = null
             onEvent(BluetoothScanEvent.Message("BLE_SCAN_ERROR", e.message ?: "Scanner unavailable"))
         }
     }
 
     @SuppressLint("MissingPermission")
     fun stop() {
+        val previous = activeScan
+        activeScan = null // Invalidate queued callbacks before asking Android to stop.
         if (scanning && permissions.canScan()) {
-            try { adapter?.bluetoothLeScanner?.stopScan(scanCallback) }
+            try { previous?.let { adapter?.bluetoothLeScanner?.stopScan(it) } }
             catch (_: SecurityException) { }
         }
         scanning = false

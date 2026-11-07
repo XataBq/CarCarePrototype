@@ -1,6 +1,6 @@
 package com.example.carcareprototype.car
 
-import com.example.carcareprototype.presentation.state.DiagnosticState
+import com.example.carcareprototype.diagnostics.DiagnosticState
 import org.junit.Assert.*
 import org.junit.Test
 

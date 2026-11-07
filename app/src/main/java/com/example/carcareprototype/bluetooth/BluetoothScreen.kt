@@ -1,6 +1,7 @@
 package com.example.carcareprototype.bluetooth
 
 import android.content.Intent
+import android.app.Application
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -13,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -20,7 +22,9 @@ import java.util.Locale
 import com.example.carcareprototype.bluetooth.uuids.BluetoothUuidCatalog
 
 @Composable
-fun BluetoothScreen(vm: BluetoothViewModel = viewModel()) {
+fun BluetoothScreen(
+    vm: BluetoothViewModel = viewModel(factory = BluetoothViewModel.factory(LocalContext.current.applicationContext as Application))
+) {
     val state by vm.uiState.collectAsStateWithLifecycle()
     val adapter = state.adapterState
     val link = state.link
@@ -37,9 +41,9 @@ fun BluetoothScreen(vm: BluetoothViewModel = viewModel()) {
         ActivityResultContracts.CreateDocument("application/x-ndjson")
     ) { uri -> if (uri != null) vm.exportHistory(uri) }
 
-    DisposableEffect(vm) {
+    LifecycleStartEffect(vm) {
         vm.start()
-        onDispose { vm.stop() }
+        onStopOrDispose { vm.stop() }
     }
 
     LazyColumn(
