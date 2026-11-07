@@ -13,9 +13,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.example.carcareprototype.bluetooth.BluetoothScreen
@@ -42,24 +41,19 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun CarTesterApp() {
 
-    var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedTab by rememberSaveable { mutableStateOf(AppDestinations.ANDROID_AUTO) }
 
     Scaffold(
         bottomBar = {
             NavigationBar {
-                NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    icon = { Text("\uD83D\uDE97") },
-                    label = { Text("Android Auto") },
-                )
-
-                NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    icon = { Text("ᛒ") },
-                    label = { Text("Bluetooth") }
-                )
+                AppDestinations.entries.forEach { destination ->
+                    NavigationBarItem(
+                        selected = selectedTab == destination,
+                        onClick = { selectedTab = destination },
+                        icon = { Text(destination.icon) },
+                        label = { Text(destination.label) },
+                    )
+                }
             }
         }
     ) { paddingValues ->
@@ -69,8 +63,8 @@ private fun CarTesterApp() {
                 .padding(paddingValues)
         ) {
             when (selectedTab) {
-                0 -> DiagnosticScreen()
-                1 -> BluetoothScreen()
+                AppDestinations.ANDROID_AUTO -> DiagnosticScreen()
+                AppDestinations.BLUETOOTH -> BluetoothScreen()
             }
         }
     }

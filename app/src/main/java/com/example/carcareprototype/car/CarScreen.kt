@@ -33,7 +33,9 @@ class CarScreen(
         DiagnosticRepository.log("CarScreen ON_START connection=$connectionToken", connectionToken)
         stateJob = lifecycleScope.launch {
             DiagnosticRepository.state
-                .map { it.toCarScreenState() }
+                .map { it.androidAutoConnected to it.mileage }
+                .distinctUntilChanged()
+                .map { (connected, mileage) -> mileage.toCarScreenState(connected) }
                 .distinctUntilChanged()
                 .collect { invalidate() }
         }

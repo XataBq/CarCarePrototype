@@ -101,9 +101,6 @@ internal class MileageDataSource(
                 permissionRequestInFlight = false
                 val granted = CarMileagePermission.isGranted(carContext)
                 CarMileagePermission.reportRequestResult(granted)
-                if (granted) {
-                    start()
-                } else if (isStarted()) subscription.permissionDenied()
             }
         } catch (error: Exception) {
             permissionRequestInFlight = false

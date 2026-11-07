@@ -2,9 +2,8 @@ package com.example.carcareprototype
 
 enum class AppDestinations(
     val label: String,
-    val icon: Int,
+    val icon: String,
 ) {
-    HOME("Home", R.drawable.ic_home),
-    FAVORITES("Favorites", R.drawable.ic_favorite),
-    PROFILE("Profile", R.drawable.ic_account_box),
+    ANDROID_AUTO("Android Auto", "🚗"),
+    BLUETOOTH("Bluetooth", "ᛒ"),
 }

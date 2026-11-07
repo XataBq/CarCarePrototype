@@ -1,7 +1,8 @@
-package com.example.carcareprototype.presentation.state
+package com.example.carcareprototype.diagnostics
 
 import com.example.carcareprototype.car.MileageState
 
+/** Shared diagnostic state; neither persistence nor the car host depends on phone presentation. */
 data class DiagnosticState(
     val androidAutoConnected: Boolean = false,
     val mileage: MileageState = MileageState(),

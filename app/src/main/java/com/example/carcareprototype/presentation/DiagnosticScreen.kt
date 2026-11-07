@@ -2,7 +2,6 @@ package com.example.carcareprototype.presentation
 
 import android.content.Intent
 import android.net.Uri
-import android.provider.DocumentsContract
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -18,7 +17,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -34,42 +32,34 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.carcareprototype.car.CarLogExportMode
 import com.example.carcareprototype.car.CarMileagePermission
-import com.example.carcareprototype.car.MileageRetry
 import com.example.carcareprototype.car.toCarScreenState
-import com.example.carcareprototype.diagnostics.DiagnosticRepository
 
 @Composable
-internal fun DiagnosticScreen(vm: DiagnosticViewModel = viewModel()) {
+internal fun DiagnosticScreen(
+    vm: DiagnosticViewModel = viewModel(factory = DiagnosticViewModelFactory(LocalContext.current)),
+) {
     val state by vm.state.collectAsStateWithLifecycle()
-    val mileageDisplay = state.toCarScreenState()
-    val retryFeedback by MileageRetry.feedback.collectAsStateWithLifecycle()
+    val mileageDisplay = remember(state.androidAutoConnected, state.mileage) { state.toCarScreenState() }
+    val retryFeedback by vm.retryFeedback.collectAsStateWithLifecycle()
+    val permission by vm.mileagePermission.collectAsStateWithLifecycle()
     val export by vm.export.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var editingCar by rememberSaveable { mutableStateOf(false) }
     var carId by rememberSaveable { mutableStateOf("") }
-    var mileagePermissionGranted by remember { mutableStateOf(CarMileagePermission.isGranted(context)) }
     var permissionRequested by rememberSaveable { mutableStateOf(false) }
-    var permissionDenied by rememberSaveable { mutableStateOf(false) }
     val mileagePermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        mileagePermissionGranted = granted && CarMileagePermission.isGranted(context)
-        permissionDenied = !mileagePermissionGranted
-        CarMileagePermission.reportRequestResult(mileagePermissionGranted)
-        DiagnosticRepository.log("Phone mileage permission result granted=$mileagePermissionGranted")
+        vm.onMileagePermissionResult(granted)
     }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
-        mileagePermissionGranted = CarMileagePermission.isGranted(context)
-        if (mileagePermissionGranted) permissionDenied = false
-        CarMileagePermission.refresh()
+        vm.refreshMileagePermission()
     }
     LaunchedEffect(Unit) {
-        if (!CarMileagePermission.isGranted(context) && !permissionRequested) {
+        if (!permission.granted && !permissionRequested) {
             permissionRequested = true
             mileagePermissionLauncher.launch(CarMileagePermission.NAME)
         }
@@ -103,21 +93,21 @@ internal fun DiagnosticScreen(vm: DiagnosticViewModel = viewModel()) {
                 Text("Last API: ${mileageDisplay.responseText}; raw timestamp: ${state.mileage.lastReply?.rawTimestamp ?: "N/A"}", style = MaterialTheme.typography.bodySmall)
                 Text("Source: Android Auto Car Hardware API", style = MaterialTheme.typography.bodySmall)
                 Text("Mileage verification: UNVERIFIED — compare with dashboard; not used for maintenance", style = MaterialTheme.typography.bodySmall)
-                TextButton(onClick = MileageRetry::request) { Text("Retry mileage") }
+                TextButton(onClick = vm::retryMileage) { Text("Retry mileage") }
                 retryFeedback?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-                if (!mileagePermissionGranted) {
+                if (!permission.granted) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(if (permissionDenied) "Mileage access denied" else "Mileage permission required",
+                        Text(if (permission.denied) "Mileage access denied" else "Mileage permission required",
                             modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
                         TextButton(onClick = {
-                            if (permissionDenied) {
+                            if (permission.denied) {
                                 context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                                     Uri.parse("package:${context.packageName}")))
                             } else {
                                 permissionRequested = true
                                 mileagePermissionLauncher.launch(CarMileagePermission.NAME)
                             }
-                        }) { Text(if (permissionDenied) "App settings" else "Allow mileage") }
+                        }) { Text(if (permission.denied) "App settings" else "Allow mileage") }
                     }
                 }
             }
@@ -125,7 +115,7 @@ internal fun DiagnosticScreen(vm: DiagnosticViewModel = viewModel()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Last session: ${state.lastSessionCarId ?: "Unidentified car"}",
                 modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-            TextButton(onClick = { DiagnosticRepository.log("Manual diagnostic event") }) {
+            TextButton(onClick = vm::logManualEvent) {
                 Text("Test logging")
             }
         }
@@ -182,7 +172,7 @@ internal fun DiagnosticScreen(vm: DiagnosticViewModel = viewModel()) {
             },
             confirmButton = {
                 TextButton(onClick = {
-                    DiagnosticRepository.selectCar(carId)
+                    vm.selectCar(carId)
                     editingCar = false
                 }, enabled = carId.isNotBlank() && carId.none(Char::isISOControl)) { Text("Save") }
             },
@@ -190,79 +180,12 @@ internal fun DiagnosticScreen(vm: DiagnosticViewModel = viewModel()) {
         )
     }
 
-    if (export.sessionOnly != null) {
-        if (export.conflict != null) {
-            AlertDialog(
-                onDismissRequest = vm::dismissExport,
-                properties = DialogProperties(
-                    dismissOnBackPress = !export.busy,
-                    dismissOnClickOutside = !export.busy
-                ),
-                title = { Text("File already exists") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("${export.fileName} already exists in the selected folder.")
-                        Text("Append keeps the existing contents. Replace overwrites the file.")
-                        if (export.busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                    }
-                },
-                confirmButton = {
-                    Column {
-                        TextButton(onClick = { vm.save(CarLogExportMode.APPEND) }, enabled = !export.busy) {
-                            Text("Append")
-                        }
-                        TextButton(onClick = { vm.save(CarLogExportMode.REPLACE) }, enabled = !export.busy) {
-                            Text("Replace")
-                        }
-                        TextButton(onClick = vm::chooseAnotherName, enabled = !export.busy) {
-                            Text("Change name")
-                        }
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = vm::dismissExport, enabled = !export.busy) { Text("Cancel") }
-                }
-            )
-        } else {
-            AlertDialog(
-                onDismissRequest = vm::dismissExport,
-                properties = DialogProperties(
-                    dismissOnBackPress = !export.busy,
-                    dismissOnClickOutside = !export.busy
-                ),
-                title = { Text(if (export.sessionOnly == true) "Export last session logs" else "Export all logs") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (export.sessionOnly == true) Text("Car: ${export.sessionCarId ?: "Unidentified car"}")
-                        if (export.editName) OutlinedTextField(
-                            value = export.fileName,
-                            onValueChange = vm::changeName,
-                            label = { Text("File name (.jsonl)") },
-                            singleLine = true,
-                            enabled = !export.busy,
-                            isError = export.error != null
-                        )
-                        else Text("File: ${export.fileName}")
-                        Text("Choose a folder on your phone, for example Documents/CarCare.")
-                        export.folder?.let { Text("Folder: ${DocumentsContract.getTreeDocumentId(it)}") }
-                        TextButton(
-                            onClick = { folderPicker.launch(export.folder) },
-                            enabled = !export.busy
-                        ) { Text(if (export.folder == null) "Choose folder" else "Change folder") }
-                        export.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                        if (export.busy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                    }
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = { vm.save() },
-                        enabled = export.folder != null && !export.busy
-                    ) { Text("Save") }
-                },
-                dismissButton = {
-                    TextButton(onClick = vm::dismissExport, enabled = !export.busy) { Text("Cancel") }
-                }
-            )
-        }
-    }
+    CarLogExportDialogs(
+        export = export,
+        onDismiss = vm::dismissExport,
+        onSave = vm::save,
+        onChooseAnotherName = vm::chooseAnotherName,
+        onChangeName = vm::changeName,
+        onPickFolder = { folderPicker.launch(it) },
+    )
 }

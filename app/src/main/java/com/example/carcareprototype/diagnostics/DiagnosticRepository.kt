@@ -8,7 +8,6 @@ import com.example.carcareprototype.car.CarLogSnapshot
 import com.example.carcareprototype.car.CarSessionTracker
 import com.example.carcareprototype.car.MileageState
 import com.example.carcareprototype.car.MileageStateScope
-import com.example.carcareprototype.presentation.state.DiagnosticState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -22,7 +21,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.io.File
 
-object DiagnosticRepository {
+internal object DiagnosticRepository : DiagnosticJournal {
     private sealed interface Action {
         data class Event(
             val timestamp: Long,
@@ -41,7 +40,7 @@ object DiagnosticRepository {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var initialized = false
     private val _state = MutableStateFlow(DiagnosticState())
-    val state = _state.asStateFlow()
+    override val state = _state.asStateFlow()
     private val _mileageRevision = MutableStateFlow(0L)
     internal val mileageRevision = _mileageRevision.asStateFlow()
 
@@ -141,7 +140,7 @@ object DiagnosticRepository {
         }
     }
 
-    internal suspend fun snapshot(sessionId: String? = null, startOffset: Long = 0): CarLogSnapshot {
+    override suspend fun snapshot(sessionId: String?, startOffset: Long): CarLogSnapshot {
         val result = CompletableDeferred<CarLogSnapshot>()
         try {
             queue.send(Action.Snapshot(sessionId, startOffset, result))
@@ -151,7 +150,7 @@ object DiagnosticRepository {
         }
     }
 
-    fun selectCar(id: String) {
+    override fun selectCar(id: String) {
         val normalized = id.trim().ifEmpty { null }
         require(normalized == null || (normalized.length <= 80 && normalized.none(Char::isISOControl)))
         enqueue(Action.Event(System.currentTimeMillis(), "Selected car: ${normalized ?: "unidentified"}",
@@ -174,7 +173,7 @@ object DiagnosticRepository {
             Kind.MILEAGE, connectionToken, mileage = mileage, revision = revision))
     }
 
-    fun log(message: String, connectionToken: String? = null) = enqueue(
+    override fun log(message: String, connectionToken: String?) = enqueue(
         Action.Event(System.currentTimeMillis(), message, token = connectionToken)
     )
 

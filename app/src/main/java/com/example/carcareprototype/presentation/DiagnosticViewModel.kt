@@ -1,23 +1,21 @@
 package com.example.carcareprototype.presentation
 
-import android.app.Application
-import android.content.Intent
 import android.net.Uri
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.carcareprototype.car.CarLogExporter
 import com.example.carcareprototype.car.CarLogExportMode
 import com.example.carcareprototype.car.carLogFileName
-import com.example.carcareprototype.diagnostics.DiagnosticRepository
+import com.example.carcareprototype.diagnostics.DiagnosticJournal
+import com.example.carcareprototype.diagnostics.CarLogExportOperations
+import com.example.carcareprototype.car.MileagePermissionState
+import kotlinx.coroutines.flow.StateFlow
+import com.example.carcareprototype.diagnostics.CarLogExportResult
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 
 internal data class CarExportState(
     val sessionOnly: Boolean? = null,
@@ -34,16 +32,29 @@ internal data class CarExportState(
     val savedFile: Uri? = null
 )
 
-internal class DiagnosticViewModel(application: Application) : AndroidViewModel(application) {
-    private val repository = DiagnosticRepository
-    private val resolver = application.contentResolver
-    private val preferences = application.getSharedPreferences("car_log_export", 0)
-    private val exporter = CarLogExporter(resolver)
+internal class DiagnosticViewModel(
+    private val repository: DiagnosticJournal,
+    private val exportService: CarLogExportOperations,
+    val mileagePermission: StateFlow<MileagePermissionState>,
+    val retryFeedback: StateFlow<String?>,
+    private val refreshPermission: () -> Unit,
+    private val reportPermission: (Boolean) -> Unit,
+    private val requestRetry: () -> Unit,
+) : ViewModel() {
     val state = repository.state
     private val _export = MutableStateFlow(CarExportState(
-        folder = preferences.getString("folder", null)?.let(Uri::parse)
+        folder = exportService.folder
     ))
     val export = _export.asStateFlow()
+
+    fun selectCar(id: String) = repository.selectCar(id)
+    fun logManualEvent() = repository.log("Manual diagnostic event")
+    fun retryMileage() = requestRetry()
+    fun refreshMileagePermission() = refreshPermission()
+    fun onMileagePermissionResult(granted: Boolean) {
+        reportPermission(granted)
+        repository.log("Phone mileage permission result granted=${mileagePermission.value.granted}")
+    }
 
     fun beginExport(sessionOnly: Boolean) {
         if (_export.value.busy) return
@@ -69,19 +80,27 @@ internal class DiagnosticViewModel(application: Application) : AndroidViewModel(
     }
 
     fun chooseAnotherName() {
+        if (_export.value.busy) return
         _export.update { it.copy(conflict = null, editName = true, error = null) }
     }
 
     fun selectFolder(uri: Uri) {
-        try {
-            resolver.takePersistableUriPermission(
-                uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            )
-            preferences.edit().putString("folder", uri.toString()).apply()
-            _export.update { it.copy(folder = uri, conflict = null, error = null) }
-            if (_export.value.sessionOnly == false && !_export.value.editName) save()
-        } catch (error: Exception) {
-            _export.update { it.copy(error = "Could not access folder: ${error.message}") }
+        if (_export.value.busy) return
+        _export.update { it.copy(busy = true, error = null) }
+        viewModelScope.launch {
+            var selected = false
+            try {
+                exportService.selectFolder(uri)
+                _export.update { it.copy(folder = uri, conflict = null, error = null) }
+                selected = true
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                _export.update { it.copy(error = "Could not access folder: ${error.message}") }
+            } finally {
+                _export.update { it.copy(busy = false) }
+            }
+            if (selected && _export.value.sessionOnly == false && !_export.value.editName) save()
         }
     }
 
@@ -99,29 +118,23 @@ internal class DiagnosticViewModel(application: Application) : AndroidViewModel(
         _export.update { it.copy(busy = true, error = null) }
         viewModelScope.launch {
             try {
-                val existing = withContext(Dispatchers.IO) { exporter.find(folder, name) }
-                if (mode == CarLogExportMode.CREATE && existing != null) {
-                    _export.update { it.copy(conflict = existing, busy = false) }
-                    return@launch
-                }
-
-                val snapshot = withTimeout(30_000) {
-                    repository.snapshot(request.sessionId, request.sessionStartOffset)
-                }
-                val saved = withContext(Dispatchers.IO) {
-                    exporter.write(folder, name, mode, request.conflict, snapshot)
-                }
-                _export.update {
-                    it.copy(sessionOnly = null, conflict = null, busy = false,
-                        message = "Saved $name in the selected folder", savedFile = saved)
+                when (val result = exportService.export(folder, name, mode, request.conflict,
+                    request.sessionId, request.sessionStartOffset)) {
+                    is CarLogExportResult.Conflict -> _export.update { it.copy(conflict = result.destination) }
+                    is CarLogExportResult.Saved -> _export.update {
+                        it.copy(sessionOnly = null, conflict = null,
+                            message = "Saved $name in the selected folder", savedFile = result.destination)
+                    }
                 }
             } catch (timeout: TimeoutCancellationException) {
-                _export.update { it.copy(busy = false, conflict = null,
+                _export.update { it.copy(conflict = null,
                     error = "The journal is not ready. Check the storage error and try again.") }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
-                _export.update { it.copy(busy = false, conflict = null, error = "Export failed: ${error.message}") }
+                _export.update { it.copy(conflict = null, error = "Export failed: ${error.message}") }
+            } finally {
+                _export.update { it.copy(busy = false) }
             }
         }
     }
